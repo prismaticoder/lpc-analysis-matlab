@@ -133,7 +133,7 @@ classdef LpcSpeechSynthesizer < handle
 
             [~, locs] = findpeaks(20*log10(abs(h)), f_lpc);  % Find peak
             formants = locs(1:3);  % First three peaks are the formants
-            % ... (Your formant estimation logic here) ...
+
             obj.FormantFrequencies = formants;
 
             % Display the estimated formant frequencies
