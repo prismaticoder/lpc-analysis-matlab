@@ -53,6 +53,8 @@ classdef LpcSpeechSynthesizer < handle
             % Calculate LPC coefficients
             obj.getLpcCoeffficients();
 
+            freqz(1, obj.LpcCoeffs, 512, obj.Fs);
+
             % Get frequency response of LPC filter
             [h, f] = freqz(1, obj.LpcCoeffs);
 
@@ -67,14 +69,40 @@ classdef LpcSpeechSynthesizer < handle
 
             % Plot both frequency responses
             figure;
-            plot(f_lpc, 20*log10(abs(h)), 'r', 'LineWidth', 1.5);
+            plot(f_lpc, 20*log10(abs(h)), 'r', 'LineWidth', 2.5);
+
             hold on;
             plot(frequency_axis(1:obj.SegmentLength/2), X_dB(1:obj.SegmentLength/2), 'b');
+
+            hold on;
+
+            % Denote first 3 peaks in the speech segment
+            % Find the peaks
+            [peaks, locs] = findpeaks(20*log10(abs(h)), f_lpc, 'NPeaks', 3); % Find first 3 peaks
+
+            % Plot the peaks with dots
+            plot(locs, peaks, 'bo', 'MarkerSize', 8, 'MarkerFaceColor', 'g'); % Green dots at peaks
+
+            % Label the peaks
+            text(locs(1), peaks(1), 'F1', 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'right');
+            text(locs(2), peaks(2), 'F2', 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'right');
+            text(locs(3), peaks(3), 'F3', 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'right');
+
+            % Label the axes and add a legend
             xlabel('Frequency (Hz)');
             ylabel('Magnitude (dB)');
             title('LPC Filter and Speech Segment Frequency Responses');
-            legend('LPC Filter', 'Speech Segment');
+            legend(sprintf('LPC Filter p = %d', obj.Order), 'Speech Segment');
             hold off;
+        end
+
+        % Method to plot pole-zero plot
+        function plotPoleZeroPlot(obj)
+            % Calculate LPC coefficients
+            obj.getLpcCoeffficients();
+
+            zplane(1, obj.LpcCoeffs);
+            title('Pole-Zero Plot of LPC Filter');
         end
 
         % Method to calculate LPC coefficients
@@ -124,15 +152,24 @@ classdef LpcSpeechSynthesizer < handle
                 obj.getMeanFundamentalFrequency();
             end
 
+            % Confirm output filename has .wav extension
+            [~, ~, ext] = fileparts(outputFilename);
+            if ~strcmp(ext, '.wav')
+                error('Output filename must have .wav extension.');
+            end
+
             % Generate impulse train
-            impulse_train = zeros(size(obj.SpeechSegment));
+            durationInSeconds = 1;
+            numberOfSamples = round(durationInSeconds * obj.Fs);
+
+            impulse_train = zeros(1, numberOfSamples);
             impulse_spacing = round(obj.Fs / obj.MeanF0);
             impulse_train(1:impulse_spacing:end) = 1;
 
             % Filter impulse train using LPC filter
             synthesized_speech = filter(1, obj.LpcCoeffs, impulse_train);
 
-            % Normalize audio data
+            % Normalize audio data so it isn't clipped with audiowrite
             maxVal = max(abs(synthesized_speech));
             if maxVal > 1
                 synthesized_speech = synthesized_speech / maxVal;  % Normalize to [-1, 1]
