@@ -181,7 +181,28 @@ classdef LpcSpeechSynthesizer < handle
 
         % Method to calculate the mean fundamental frequency
         function getMeanFundamentalFrequency(obj)
-            obj.MeanF0 = mean(pitch(obj.SpeechSegment, obj.Fs));
+            % Compute the autocorrelation of the signal
+            [acf, lags] = xcorr(obj.SpeechSegment);
+            midpoint = ceil(length(acf)/2); % Index of zero-lag in acf
+            acf = acf(midpoint:end);    % Keep only +ve lags
+            lags = lags(midpoint:end);  % Corresponding positive lags
+
+            min_f0 = 60;  % Minimum speech pitch frequency (usually for low-pitched males)
+            max_f0 = 600;  % Maximum speech pitch frequency (usually for children)
+
+            min_lag = round(obj.Fs / max_f0);  % Minimum lag in samples (higher frequency -> shorter lag)
+            max_lag = round(obj.Fs / min_f0);  % Maximum lag in samples (lower frequency -> longer lag)
+
+            % Compute maximum autocorrelation within the specified lag range
+            lag_indices = (lags >= min_lag & lags <= max_lag);  % Logical index for lags within the range
+            [~, max_index] = max(acf(lag_indices));  % Find the maximum value within the specified range
+            max_lag = lags(lag_indices);               % Get the lags corresponding to the indices
+
+            % Calculate the pitch period and fundamental frequency
+            pitch_period_samples = max_lag(max_index);
+            F0 = obj.Fs / pitch_period_samples;
+
+            obj.MeanF0 = F0;
 
             % Display the mean fundamental frequency
             fprintf('Mean Fundamental Frequency (F0): %.2f Hz\n', obj.MeanF0);
