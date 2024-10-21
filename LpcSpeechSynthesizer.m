@@ -18,6 +18,14 @@ classdef LpcSpeechSynthesizer < handle
                 error('The specified file does not exist: %s', filename);
             end
 
+            % Check if file is a .wav file
+            [~, ~, ext] = fileparts(filename);
+            if ~strcmp(ext, '.wav')
+                error('The specified file must be a .wav file.');
+            end
+
+            lpcMethod = lower(lpcMethod); % Convert to lowercase
+
             % Check if the LPC method is valid
             validMethods = {'lpc', 'aryule', 'arcov'};
             if ~any(strcmp(lpcMethod, validMethods))
