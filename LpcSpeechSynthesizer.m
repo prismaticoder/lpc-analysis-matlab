@@ -134,18 +134,37 @@ classdef LpcSpeechSynthesizer < handle
                 obj.getLpcCoeffficients();
             end
 
-            [h, f] = freqz(1, obj.LpcCoeffs);
+            % Get the roots of the denominator polynomial
+            poles = roots(obj.LpcCoeffs);
 
-            % Convert frequency to Hz
-            f_lpc = f * obj.Fs / (2 * pi); % Convert to Hz
+            % Convert the poles to frequencies in Hz
+            frequencies = atan2(imag(poles), real(poles)) * (obj.Fs / (2 * pi));
 
-            [~, locs] = findpeaks(20*log10(abs(h)), f_lpc);  % Find peak
-            formants = locs(1:3);  % First three peaks are the formants
+            % Keep positive frequencies
+            frequencies = frequencies(frequencies > 0);
 
-            obj.FormantFrequencies = formants;
+            % Sort the formant frequencies
+            frequencies = sort(frequencies);
+
+            % Display the formant frequencies (First three formants)
+            formantsFromPoles = frequencies(1:3);
+
+            obj.FormantFrequencies = formantsFromPoles;
 
             % Display the estimated formant frequencies
-            fprintf('Estimated Formant Frequencies: F1 = %.2f Hz, F2 = %.2f Hz, F3 = %.2f Hz\n', formants(1), formants(2), formants(3));
+            fprintf('Estimated Formant Frequencies: F1 = %.2f Hz, F2 = %.2f Hz, F3 = %.2f Hz\n', formantsFromPoles(1), formantsFromPoles(2), formantsFromPoles(3));
+
+            % OPTIONAL: Deducing the formants from the peaks
+            % [h, f] = freqz(1, obj.LpcCoeffs);
+
+            % Convert frequency to Hz
+            % f_lpc = f * obj.Fs / (2 * pi); % Convert to Hz
+
+            % [~, locs] = findpeaks(20*log10(abs(h)), f_lpc);  % Find peak
+            % formantsFromPeaks = locs(1:3);  % First three peaks are the formantsFromPeaks
+
+            % Display the estimated formant frequencies
+            % fprintf('Estimated Formant Frequencies: F1 = %.2f Hz, F2 = %.2f Hz, F3 = %.2f Hz\n', formantsFromPeaks(1), formantsFromPeaks(2), formantsFromPeaks(3));
         end
 
         % Method to synthesize speech
