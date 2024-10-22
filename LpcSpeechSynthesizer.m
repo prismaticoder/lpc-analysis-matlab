@@ -47,12 +47,21 @@ classdef LpcSpeechSynthesizer < handle
 
             obj.Fs = samplingFreq;
 
+            totalSamples = length(speechSignal);
+            midpointSample = round(totalSamples / 2); % Midpoint of the audio signal
+
             segmentDurationInMs = 100;
-            segmentDurationSamples = round((segmentDurationInMs / 1000) * obj.Fs); % Convert to samples
+            numOfSamplesToTake = round((segmentDurationInMs/1000) * samplingFreq);
 
-            startSample = 50;
+            % Choose samples centered around the midpoint because of possible noise in the beginning of signal
+            startSample = midpointSample - round(numOfSamplesToTake / 2);
+            endSample = midpointSample + round(numOfSamplesToTake / 2);
 
-            obj.SpeechSegment = speechSignal(startSample:startSample + segmentDurationSamples - 1);
+            % Ensure start and end samples are within bounds
+            startSample = max(1, startSample);
+            endSample = min(totalSamples, endSample);
+
+            obj.SpeechSegment = speechSignal(startSample:endSample-1, :);
             obj.SegmentLength = length(obj.SpeechSegment);
         end
 
