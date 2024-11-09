@@ -6,13 +6,15 @@ classdef LpcSpeechSynthesizer < handle
         Fs % Sampling frequency
         SpeechSegment % The selected vowel segment
         SegmentLength % Length of the speech segment
+        SegmentDurationInMs % Duration of the speech segment in milliseconds
         LpcCoeffs % LPC coefficients
         FormantFrequencies % Estimated formant frequencies
         MeanF0 % Mean fundamental frequency
+        SpeakerType % Type of speaker
     end
 
     methods
-        function obj = LpcSpeechSynthesizer(filename, order, lpcMethod)
+        function obj = LpcSpeechSynthesizer(filename, order, lpcMethod, speakerType)
             % Check if the file exists
             if ~isfile(filename)
                 error('The specified file does not exist: %s', filename);
@@ -37,10 +39,25 @@ classdef LpcSpeechSynthesizer < handle
                 error('The order must be a positive integer.');
             end
 
+            validSpeakerTypes = {'male', 'female'};
+
+            % Make speakerType optional with default value 'any'
+            if nargin < 4
+                speakerType = 'any';
+            elseif ~isempty(speakerType)  % Only validate if a value was provided
+                speakerType = lower(speakerType); % Convert to lowercase
+                if ~any(strcmp(speakerType, validSpeakerTypes))
+                    error('Invalid speaker type: %s. Valid types are: %s', speakerType, strjoin(validSpeakerTypes, ', '));
+                end
+            else
+                speakerType = 'any';
+            end
+
             % If inputs are valid, proceed with initialisation
             obj.Filename = filename;
             obj.Order = order;
             obj.LpcMethod = lpcMethod;
+            obj.SpeakerType = speakerType;
 
             % Read audio file and store sampling frequency
             [speechSignal, samplingFreq] = audioread(filename);
@@ -50,7 +67,7 @@ classdef LpcSpeechSynthesizer < handle
             totalSamples = length(speechSignal);
             midpointSample = round(totalSamples / 2); % Midpoint of the audio signal
 
-            segmentDurationInMs = 100;
+            segmentDurationInMs = 50; % Can be varied
             numOfSamplesToTake = round((segmentDurationInMs/1000) * samplingFreq);
 
             % Choose samples centered around the midpoint because of possible noise in the beginning of signal
@@ -63,6 +80,7 @@ classdef LpcSpeechSynthesizer < handle
 
             obj.SpeechSegment = speechSignal(startSample:endSample-1, :);
             obj.SegmentLength = length(obj.SpeechSegment);
+            obj.SegmentDurationInMs = segmentDurationInMs;
         end
 
         % Method to plot frequency responses
@@ -70,7 +88,7 @@ classdef LpcSpeechSynthesizer < handle
             % Calculate LPC coefficients
             obj.getLpcCoeffficients();
 
-            freqz(1, obj.LpcCoeffs, 512, obj.Fs);
+            % freqz(1, obj.LpcCoeffs, 512, obj.Fs);
 
             % Get frequency response of LPC filter
             [h, f] = freqz(1, obj.LpcCoeffs);
@@ -109,7 +127,7 @@ classdef LpcSpeechSynthesizer < handle
             xlabel('Frequency (Hz)');
             ylabel('Magnitude (dB)');
             title('LPC Filter and Speech Segment Frequency Responses');
-            legend(sprintf('LPC Filter p = %d', obj.Order), 'Speech Segment');
+            legend(sprintf('LPC Filter (p = %d)', obj.Order), 'Speech Segment');
             hold off;
         end
 
@@ -188,10 +206,17 @@ classdef LpcSpeechSynthesizer < handle
                 obj.getMeanFundamentalFrequency();
             end
 
-            % Confirm output filename has .wav extension
-            [~, ~, ext] = fileparts(outputFilename);
-            if ~strcmp(ext, '.wav')
-                error('Output filename must have .wav extension.');
+            % Generate default filename if not provided
+            if nargin < 2 || isempty(outputFilename)
+                [filepath, name, ~] = fileparts(obj.Filename);
+                outputFilename = fullfile(filepath, sprintf('%s_order_%d_duration_%d.wav', ...
+                    name, obj.Order, obj.SegmentDurationInMs));
+            else
+                % Confirm output filename has .wav extension
+                [~, ~, ext] = fileparts(outputFilename);
+                if ~strcmp(ext, '.wav')
+                    error('Output filename must have .wav extension.');
+                end
             end
 
             % Generate impulse train
@@ -223,8 +248,16 @@ classdef LpcSpeechSynthesizer < handle
             acf = acf(midpoint:end);    % Keep only +ve lags
             lags = lags(midpoint:end);  % Corresponding positive lags
 
-            min_f0 = 60;  % Minimum speech pitch frequency (usually for low-pitched males)
-            max_f0 = 600;  % Maximum speech pitch frequency (usually for children)
+            if strcmp(obj.SpeakerType, 'male')
+                min_f0 = 90;
+                max_f0 = 155;
+            elseif strcmp(obj.SpeakerType, 'female')
+                min_f0 = 165;
+                max_f0 = 255;
+            else
+                min_f0 = 50;  % Minimum speech pitch frequency (usually for low-pitched males)
+                max_f0 = 500;  % Maximum speech pitch frequency (usually for children)
+            end
 
             min_lag = round(obj.Fs / max_f0);  % Minimum lag in samples (higher frequency -> shorter lag)
             max_lag = round(obj.Fs / min_f0);  % Maximum lag in samples (lower frequency -> longer lag)
